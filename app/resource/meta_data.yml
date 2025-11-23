@@ -1,0 +1,325 @@
+date_joins:
+  script_name: "Monthly_revenue"
+  schema_name: analysis
+  inputs: ["customer_id", "product", "month", "revenue"]
+  outputs: "Segment Start and End Month"
+  dependencies: ["fact_revenue", "dim_customer", "dim_product"]
+  order: 1
+  dialect: "Databricks"
+  description: "Calculating the Segment start month and Segment End Month"
+
+date_scaffolding:
+  script_name: "Monthly_revenue"
+  schema_name: analysis
+  inputs: ["date_joins"]
+  outputs: "Date Scaffolding"
+  dependencies: ["fact_revenue", "dim_customer", "dim_product"]
+  order: 1
+  dialect: "Databricks"
+  description: "Filling the revenue as 0 where the month doesn't have revenue and add additional 12 months after each segment end month"
+
+
+aggregated_revenue:
+  script_name: "Monthly_revenue"
+  schema_name: analysis
+  inputs: ["date_scaffolding"]
+  outputs: "Aggregated revenue"
+  dependencies: ["fact_revenue", "dim_customer", "dim_product"]
+  order: 1
+  dialect: "Databricks"
+  description: "Aggregated the revenue after the date Scaffolding to fill the missing Months"
+
+
+churn_month_calc:
+  script_name: "Monthly_revenue"
+  schema_name: analysis
+  inputs: ["aggregated_revenue"]
+  outputs: "Product churn month"
+  dependencies: ["fact_revenue", "dim_customer", "dim_product"]
+  order: 1
+  dialect: "Databricks"
+  description: "Calculating Product churn month to Calcule the LTM revenue"
+
+arr_calc:
+  script_name: "Monthly_revenue"
+  schema_name: analysis
+  inputs: ["aggregated_revenue","churn_month_calc"]
+  outputs: "ARR or LTM revenue"
+  dependencies: ["fact_revenue", "dim_customer", "dim_product"]
+  order: 1
+  dialect: "Databricks"
+  description: "Calculate the ARR value if revneue_type is recurring then MRR * 12, if re-occuring or non-occuring LTM revneue has been calculated"
+
+
+churn_month:
+  script_name: "customer_contract"
+  schema_name: analysis
+  inputs: ["Monthly_revenue"]
+  outputs: "Customer churn month"
+  dependencies: ["Monthly_revenue"]
+  order: 2
+  dialect: "Databricks"
+  description: "Calculating Customer start month and churn month"
+
+customer_contract: 
+  script_name: "customer_contract"
+  schema_name: analysis
+  inputs: ["churn_month"]
+  outputs: "Customer churn month"
+  dependencies: ["Monthly_revenue"]
+  order: 2
+  dialect: "Databricks"
+  description: "Selecting the all the records from the churn_month"
+
+
+get_product_start_end_month:
+  script_name: "customer_product_contract"
+  schema_name: analysis
+  inputs: ["Monthly_revenue"]
+  outputs: "Product Customer churn month"
+  dependencies: ["Monthly_revenue"]
+  order: 3
+  dialect: "Databricks"
+  description: "Calculating Customer Product start month and churn month"
+
+customer_product_contract: 
+  script_name: "customer_product_contract"
+  schema_name: analysis
+  inputs: ["get_product_start_end_month"]
+  outputs: "Customer churn month"
+  dependencies: ["Monthly_revenue"]
+  order: 3
+  dialect: "Databricks"
+  description: "Aggregating the all the records from the get_product_start_end_month"
+
+get_ytd_start: 
+  script_name: "period_revenue"
+  schema_name: analysis
+  inputs: ["Monthly_revenue"]
+  outputs: "Records from Monthly_revenue"
+  dependencies: ["Monthly_revenue"]
+  order: 4
+  dialect: "Databricks"
+  description: "Selecting necessary records from Monthly_revenue"
+
+get_revenue_lags: 
+  script_name: "period_revenue"
+  schema_name: analysis
+  inputs: ["get_ytd_start"]
+  outputs: "Revenue Lags"
+  dependencies: ["Monthly_revenue"]
+  order: 4
+  dialect: "Databricks"
+  description: "Calculating revenue lags for different periods like Last Month (LM), Last 3 Month (L3M), Last Twelve Month (LTM) and YTD (Financial year - April to March)"
+
+get_delta_revenue:
+  script_name: "period_revenue"
+  schema_name: analysis
+  inputs: ["get_revenue_lags"]
+  outputs: "Delta values"
+  dependencies: ["Monthly_revenue"]
+  order: 4
+  dialect: "Databricks"
+  description: "Calculating delta values for different periods like Last Month (LM), Last 3 Month (L3M), Last Twelve Month (LTM) and Financial Period (YTD)"
+
+find_price_volume_deltas:
+  script_name: "period_revenue"
+  schema_name: analysis
+  inputs: ["get_delta_revenue"]
+  outputs: "Price and volume details"
+  dependencies: ["Monthly_revenue"]
+  order: 4
+  dialect: "Databricks"
+  description: "Calculating the SUM of delta for customer level 1 and product level 1. Calculating the price and volume details if needed remove comments"
+
+get_percentage_change:
+  script_name: "period_revenue"
+  schema_name: analysis
+  inputs: ["find_price_volume_deltas"]
+  outputs: "Price and volume details"
+  dependencies: ["Monthly_revenue"]
+  order: 4
+  dialect: "Databricks"
+  description: "Calculating the percentage price and volume details if needed remove comments"
+
+period_revenue:
+  script_name: "period_revenue"
+  schema_name: analysis
+  inputs: ["get_percentage_change","get_delta_revenue"]
+  outputs: "Price and volume details"
+  dependencies: ["Monthly_revenue"]
+  order: 4
+  dialect: "Databricks"
+  description: "Calculating the percentage price and volume details for each customer level 1 and product level 1 combination if needed remove comments"
+
+get_month_difference:
+  script_name: "customer_lifecycle_events"
+  schema_name: analysis
+  inputs: ["Monthly_revenue","customer_contract"]
+  outputs: "Price and volume details"
+  dependencies: ["Monthly_revenue","customer_contract"]
+  order: 5
+  dialect: "Databricks"
+  description: "Calculating the customer join and end month difference"
+
+customer_lifecycle_flags:
+  script_name: "customer_lifecycle_events"
+  schema_name: analysis
+  inputs: ["get_month_difference"]
+  outputs: "Customer start and Churn flags for each month"
+  dependencies: ["Monthly_revenue","customer_contract"]
+  order: 5
+  dialect: "Databricks"
+  description: "Calculating the customer join flag, existing flag and churn flag for different time periods like LM, L3M, LTM and YTD (financial Year - April to March)"
+
+get_churn_month_difference:
+  script_name: "customer_product_lifecycle_events"
+  schema_name: analysis
+  inputs: ["Monthly_revenue","customer_product_contract", "customer_lifecycle_events"]
+  outputs: "Product start and Churn flags for each month"
+  dependencies: ["Monthly_revenue","customer_product_contract", "customer_lifecycle_events"]
+  order: 6
+  dialect: "Databricks"
+  description: "Calculating the product join and end month difference"
+
+product_lifecycle_flags:
+  script_name: "customer_product_lifecycle_events"
+  schema_name: analysis
+  inputs: ["get_churn_month_difference"]
+  outputs: "Product start and Churn flags for each month"
+  dependencies: ["Monthly_revenue","customer_product_contract", "customer_lifecycle_events"]
+  order: 6
+  dialect: "Databricks"
+  description: "Calculating the product join flag, existing flag and churn flag for different time periods like LM, L3M, LTM and YTD (financial Year - April to March)"
+
+
+product_grew:
+  script_name: "customer_product_revenue_events"
+  schema_name: analysis
+  inputs: ["period_revenue"]
+  outputs: "Product grew and declied flags for each month"
+  dependencies: ["period_revenue"]
+  order: 7
+  dialect: "Databricks"
+  description: "Product grew and declied flags for each month based on the revenue change for each periods"
+
+ranked_product:
+  script_name: "customer_product_revenue_events"
+  schema_name: analysis
+  inputs: ["product_grew","customer_lifecycle_events","customer_product_contract", "customer_product_lifecycle_flags"]
+  outputs: "Product grew and declied flags for each month"
+  dependencies: ["period_revenue", "customer_lifecycle_events", "customer_product_contract", "customer_product_lifecycle_flags"]
+  outputs: "Bucket flags"
+  order: 7
+  dialect: "Databricks"
+  description: "Calculating Cross sell, upsell and downsll for each period types (LM, L3M, LTM and YTD)"
+
+find_next_nonzero_month:
+  script_name: "customer_product_revenue_events"
+  schema_name: analysis
+  inputs: ["ranked_product"]
+  outputs: "Finding next non zero month"
+  dependencies: ["period_revenue", "customer_lifecycle_events", "customer_product_contract", "customer_product_lifecycle_flags"]
+  order: 7
+  dialect: "Databricks"
+  description: "Finding next non zero month for each customer for Last Month Period type"
+
+find_prev_nonzero_month:
+  script_name: "customer_product_revenue_events"
+  schema_name: analysis
+  inputs: ["ranked_product"]
+  outputs: "Finding previous non zero month"
+  dependencies: ["period_revenue", "customer_lifecycle_events", "customer_product_contract", "customer_product_lifecycle_flags"]
+  order: 7
+  dialect: "Databricks"
+  description: "Finding previous non zero month for each customer for Last Month Period type"
+
+find_prev_nonzero_month_l3m:
+  script_name: "customer_product_revenue_events"
+  schema_name: analysis
+  inputs: ["ranked_product"]
+  outputs: "Finding previous non zero month"
+  dependencies: ["period_revenue", "customer_lifecycle_events", "customer_product_contract", "customer_product_lifecycle_flags"]
+  order: 7
+  dialect: "Databricks"
+  description: "Finding previous non zero month for each customer for Last 3 Month Period type"
+
+find_next_nonzero_month_ltm:
+  script_name: "customer_product_revenue_events"
+  schema_name: analysis
+  inputs: ["ranked_product"]
+  outputs: "Finding next non zero month"
+  dependencies: ["period_revenue", "customer_lifecycle_events", "customer_product_contract", "customer_product_lifecycle_flags"]
+  order: 7
+  dialect: "Databricks"
+  description: "Finding next non zero month for each customer for Last Twelve Month Period type"
+
+find_prev_nonzero_month_ltm:
+  script_name: "customer_product_revenue_events"
+  schema_name: analysis
+  inputs: ["ranked_product"]
+  outputs: "Finding previous non zero month"
+  dependencies: ["period_revenue", "customer_lifecycle_events", "customer_product_contract", "customer_product_lifecycle_flags"]
+  order: 7
+  dialect: "Databricks"
+  description: "Finding previous non zero month for each customer for Last Twelve Month Period type"
+
+find_next_nonzero_month_ytd:
+  script_name: "customer_product_revenue_events"
+  schema_name: analysis
+  inputs: ["ranked_product"]
+  outputs: "Finding next non zero month"
+  dependencies: ["period_revenue", "customer_lifecycle_events", "customer_product_contract", "customer_product_lifecycle_flags"]
+  order: 7
+  dialect: "Databricks"
+  description: "Finding next non zero month for each customer for YTD (financial year - April to March) Period type"
+
+find_prev_nonzero_month_ytd:
+  script_name: "customer_product_revenue_events"
+  schema_name: analysis
+  inputs: ["ranked_product"]
+  outputs: "Finding previous non zero month"
+  dependencies: ["period_revenue", "customer_lifecycle_events", "customer_product_contract", "customer_product_lifecycle_flags"]
+  order: 7
+  dialect: "Databricks"
+  description: "Finding previous non zero month for each customer for YTD (financial year - April to March) Period type"
+
+pre_final:
+  script_name: "customer_product_revenue_events"
+  schema_name: analysis
+  inputs: ["ranked_product", "find_prev_nonzero_month", "find_next_nonzero_month", "find_prev_nonzero_month_l3m", "find_next_nonzero_month_l3m", "find_prev_nonzero_month_ltm", "find_next_nonzero_month_ltm", "find_prev_nonzero_month_ytd", "find_next_nonzero_month_ytd"]
+  outputs: "Finding flag for winback"
+  dependencies: ["period_revenue", "customer_lifecycle_events", "customer_product_contract", "customer_product_lifecycle_flags"]
+  order: 7
+  dialect: "Databricks"
+  description: "Consolidating first next non zero and previous non zero flag"
+
+customer_product_revenue_events:
+  script_name: "customer_product_revenue_events"
+  schema_name: analysis
+  inputs: ["pre_final"]
+  outputs: "Flags for Intermitten Churn and Winback"
+  dependencies: ["period_revenue", "customer_lifecycle_events", "customer_product_contract", "customer_product_lifecycle_flags"]
+  order: 7
+  dialect: "Databricks"
+  description: "Calculating flags for Intermitten Churn and Winback"
+
+get_arr_business_flag:
+  script_name: "delta_revenue"
+  schema_name: analysis
+  inputs: ["period_revenue", "customer_lifecycle_events", "customer_product_revenue_events", "customer_product_lifecycle_flags"]
+  outputs: "Consolidating bucket flags"
+  dependencies: ["period_revenue", "customer_lifecycle_events", "customer_product_revenue_events", "customer_product_lifecycle_flags"]
+  order: 8
+  dialect: "Databricks"
+  description: "Consolidating revenue bucket flags"
+
+filling_data:
+  script_name: "delta_revenue"
+  schema_name: analysis
+  inputs: ["get_arr_business_flag"]
+  outputs: "Calculating buckets"
+  dependencies: ["period_revenue", "customer_lifecycle_events", "customer_product_revenue_events", "customer_product_lifecycle_flags"]
+  order: 8
+  dialect: "Databricks"
+  description: "Calculating revenue bucket values by calculated flags"

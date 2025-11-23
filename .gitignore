@@ -1,0 +1,3 @@
+vectorstore_sql/
+__pycache__/
+.env
